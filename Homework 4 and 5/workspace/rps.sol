@@ -7,6 +7,8 @@ contract RPSGame {
     mapping(address => bool) public hash_submitted;
     mapping(address => string) public choices;
     mapping(address => bool) public has_revealed;
+    mapping(address => uint256) public money_to_receive;
+    mapping(address => bool) public money_claimed;
     uint gambling_money;
     uint deadline;
     bool finished;
@@ -44,22 +46,32 @@ contract RPSGame {
         require(msg.sender == Alice || msg.sender == Bob, "Only Alice and Bob can participate");
         require((block.number >= deadline) || (has_revealed[Alice] && has_revealed[Bob]));
 
+        bytes32 AliceChoice = keccak256(bytes(choices[Alice]));
+        bytes32 BobChoice = keccak256(bytes(choices[Bob]));
+
         if ((!has_revealed[Alice] && has_revealed[Bob]) || // Bob winning // has_revealed only true when choice is properly revealed
-            (keccak256(bytes(choices[Alice])) == R && keccak256(bytes(choices[Bob])) == P) ||
-            (keccak256(bytes(choices[Alice])) == P && keccak256(bytes(choices[Bob])) == S) ||
-            (keccak256(bytes(choices[Alice])) == S && keccak256(bytes(choices[Bob])) == R))
-            payable(Bob).transfer(2 ether);
+            (AliceChoice == R && BobChoice == P) ||
+            (AliceChoice == P && BobChoice == S) ||
+            (AliceChoice == S && BobChoice == R))
+            money_to_receive[Bob] = 2 ether;
 
         else if ((has_revealed[Alice] && !has_revealed[Bob]) || // Alice winning
-                (keccak256(bytes(choices[Alice])) == R && keccak256(bytes(choices[Bob])) == S) ||
-                (keccak256(bytes(choices[Alice])) == P && keccak256(bytes(choices[Bob])) == R) ||
-                (keccak256(bytes(choices[Alice])) == S && keccak256(bytes(choices[Bob])) == P))
-            payable(Alice).transfer(2 ether);
+                (AliceChoice == R && BobChoice == S) ||
+                (AliceChoice == P && BobChoice == R) ||
+                (AliceChoice == S && BobChoice == P))
+            money_to_receive[Alice] = 2 ether;
 
         else { // Ties
-            payable(Alice).transfer(1 ether);
-            payable(Bob).transfer(1 ether);
+            money_to_receive[Alice] = 1 ether;
+            money_to_receive[Bob] = 1 ether;
         }
         finished = true;
+    }
+
+    function claimRewards() public {
+        require(msg.sender == Alice || msg.sender == Bob, "Only Alice and Bob can participate");
+        require(money_claimed[msg.sender] == false);
+        money_claimed[msg.sender] = true;
+        payable(msg.sender).transfer(money_to_receive[msg.sender]);
     }
 }
